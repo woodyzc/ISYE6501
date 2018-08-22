@@ -1,0 +1,203 @@
+---
+title: "week 7"
+author: "Chong Zhang"
+date: "February 26, 2018"
+output: html_document
+---
+
+# 10.1
+## regression tree model with all predictors
+```{r cache=TRUE}
+library(rpart.plot)
+library(rpart)
+library(ggplot2)
+library(dplyr)
+
+# load data
+crime = read.csv('uscrime.txt', sep = '', header = T, stringsAsFactors = F)
+# set the control parameter, each node must have at least 10% of the data
+control = rpart.control(minsplit = 0.1*nrow(crime), cp=0.01, xval = 10)
+# fit the dependent variable with all predictors
+tree_1 = rpart(Crime~., data = crime, control = control)
+rpart.plot(tree_1)
+# calculate the adjusted R squared
+SST = sum((crime$Crime-mean(crime$Crime))^2)
+SSR = sum((predict(tree_1)-crime$Crime)^2)
+R_squred = 1-(SSR/SST)
+adj.R_squared = 1-((1-R_squred)*(nrow(crime)-1)/(nrow(crime)-15-1))
+
+# visulize the fitted value with original value
+datas = data.frame(original = crime$Crime, fitted = predict(tree_1))
+p = ggplot(data = datas,aes(x=original, y= fitted))+
+  geom_point()+
+  geom_smooth(method = 'lm', color = 'Red')+
+  geom_text(aes(1400, 1800), label=paste('adjusted R-square = ',round(adj.R_squared,3)))
+p
+```
+
+
+## use partial predictors to build the regression tree model
+In homework 5, I used M+Ed+Po1+Pop+U1+U2+Ineq+Prob to build the final model, which gave me the highest adj.R_squared. Thus I decied to use those precitors with the same control parameter to build my regression tree model.
+```{r cache=TRUE}
+# using the same control parameters
+tree_2 = rpart(Crime~M+Ed+Po1+Pop+U1+U2+Ineq+Prob, data = crime, control = control)
+rpart.plot(tree_2)
+
+# calculate the adjusted R squared
+SST = sum((crime$Crime-mean(crime$Crime))^2)
+SSR = sum((predict(tree_2)-crime$Crime)^2)
+R_squred = 1-(SSR/SST)
+adj.R_squared = 1-((1-R_squred)*(nrow(crime)-1)/(nrow(crime)-8-1))
+
+# visulize the fitted value with original value
+datas = data.frame(original = crime$Crime, fitted = predict(tree_2))
+p = ggplot(data = datas,aes(x=original, y= fitted))+
+  geom_point()+
+  geom_smooth(method = 'lm', color = 'Red')+
+  geom_text(aes(1400, 1800), label=paste('adjusted R-square = ',round(adj.R_squared,3)))
+p
+```
+
+Based on what I have from the two regression tree models. It looks like the model with **all the variables** is better than the model untilizing **M+Ed+Po1+Pop+U1+U2+Ineq+Prob**. Also, the adj.R_squared is significantly higher than that of the linear regression model with the same set of predictors. This might be because of the parameters I set. Thus this could lead to over-fitting.
+
+It looks like that the **Po1** variable play a fundemental role in this model, since it seperate the data into two groups. It also plays an important role in one of those two groups. The importance of variables can be viewed in the **Variable importance** section.
+
+
+## Random forest model
+```{r cache=TRUE}
+set.seed(666)
+library(caret)
+library(randomForest)
+# set up the training parameter for 10-fold Cross-validation
+tc = trainControl(method = 'cv', number = 10)
+# build the randomforest model based on all the predictors
+rf_1 = train(Crime~., data=crime, trControl = tc)
+
+# calculate the adjusted R squared
+SST = sum((crime$Crime-mean(crime$Crime))^2)
+SSR = sum((predict(rf_1)-crime$Crime)^2)
+R_squred = 1-(SSR/SST)
+adj.R_squared = 1-((1-R_squred)*(nrow(crime)-1)/(nrow(crime)-15-1))
+
+# visulize the fitted value with original value
+datas = data.frame(original = crime$Crime, fitted = predict(rf_1))
+p = ggplot(data = datas,aes(x=original, y= fitted))+
+  geom_point()+
+  geom_smooth(method = 'lm', color = 'Red')+
+  geom_text(aes(1400, 1800), label=paste('adjusted R-square = ',round(adj.R_squared,3)))
+p
+```
+
+```{r cache=TRUE}
+# build the randomforest model based on partial predictors
+rf_2 = train(Crime~M+Ed+Po1+Pop+U1+U2+Ineq+Prob, data=crime, trControl = tc)
+
+# calculate the adjusted R squared
+SST = sum((crime$Crime-mean(crime$Crime))^2)
+SSR = sum((predict(rf_2)-crime$Crime)^2)
+R_squred = 1-(SSR/SST)
+adj.R_squared = 1-((1-R_squred)*(nrow(crime)-1)/(nrow(crime)-8-1))
+
+# visulize the fitted value with original value
+datas = data.frame(original = crime$Crime, fitted = predict(rf_2))
+p = ggplot(data = datas,aes(x=original, y= fitted))+
+  geom_point()+
+  geom_smooth(method = 'lm', color = 'Red')+
+  geom_text(aes(1400, 1800), label=paste('adjusted R-square = ',round(adj.R_squared,3)))
+p
+```
+
+Based on those two random forest models, I conclude that the model using partial variables are better based on **adj.R-squared**. Since random forest is like a blackbox method for prediction. It is really hard to interpret the model.
+
+#10.2
+I worked in a lab that conducting research on Plant Pathology. I can use logistic regression to predict the probability that whether a plant in the filed will develop fungal disease. Because fungal diseases can be affected by many factors such as daily average temperature, highest temperature, lowest temperature, humidity, daytime length and whether simialr disease outbroke last year. Thus I can use all of those as predictors to model the probability of whether a plant will develop such fungal disease.
+
+
+# 10.3
+## 10.3.1
+### logistic regression on German Credit data
+```{r cache=TRUE}
+library(pROC)
+library(pscl)
+# read data
+germancredit = read.csv('gernmancredit.txt', sep='', stringsAsFactors = T, header = F)
+# change the last columm which is the dependent variable to be 1 and 0.
+germancredit = mutate(germancredit, V21=as.factor(if_else(V21==1,1,0)))
+
+# fit the dependent variable V21 with all other variables
+lr_1 = glm(V21~., data = germancredit, family=binomial(link = 'logit'))
+summary(lr_1)
+# get the probability for each data point
+fitted = predict(lr_1, type = 'response')%>%as.data.frame()
+# plot the ROC
+datas = data.frame(orignial = germancredit$V21, prob=fitted$.)
+roc_1 = roc(orignial~prob, data = datas)
+plot(roc_1)
+
+# calculate the pseudo r-squared, looking for 'McFadden'
+pr_1 = pR2(lr_1)[4]
+
+```
+
+### using AIC to find the optimal model
+```{r cache=T}
+AIC_model= step(lr_1,trace = F)
+print (AIC_model$formula)
+
+#thus I can build the model with those variables
+lr_2 = glm(V21~V1 + V2 + V3 + V4 + V5 + V6 + V8 + V9 + V10 + V13 + V14 + 
+    V15 + V19 + V20, data = germancredit, family=binomial(link = 'logit'))
+summary(lr_2)
+# get the probability for each data point
+fitted = predict(lr_2, type = 'response')%>%as.data.frame()
+
+# plot the ROC
+datas = data.frame(orignial = germancredit$V21, prob=fitted$.)
+roc_2 = roc(orignial~prob, data = datas)
+plot(roc_2)
+
+# calculate the pseudo r-squared, looking for 'McFadden'
+pr_2 = pR2(lr_2)[4]
+
+```
+Here we can see that the ROC of both models are quite similar. After comparing the **pseudo r-squared** of both models, **```r pr_1``` vs ```r pr_2```**, I decided to go with the first model that unitlizes all the variables.
+
+All the coefficients are shown below.
+```{r cache=TRUE}
+print(lr_1$coefficients)
+```
+
+## 10.3.2
+Since in the data, they estimate that incorrectly identifying a bad customer as good, is 5 times worse than incorrectly classifying a good customer as bad. Setting the threshold probability to max minimize the loss
+```{r cache=TRUE}
+# initilize an empty vector for stroage
+loss_all = c()
+fitted = predict(lr_1,type = 'response')%>%as.data.frame()
+# using a for loop to go through all the probabilities
+for (i in seq(0.05, 0.99, by = 0.01)){
+  # get the predicted outcome based on the probability, 1 for good, 0 for bad
+  fitted = mutate(fitted, outcome=if_else(.>i,1,0))
+  # store the original and predicted outcome in a data.frame
+  df = data.frame(original = germancredit$V21, fitted = fitted$outcome)
+  # get the confusionMatrix
+  cm = confusionMatrix(df$original,df$fitted)
+  table = cm$table
+  # calculate the loss
+  loss = table[1,2]*5+table[2,1]*1
+  loss_all = c(loss_all,loss)
+}
+loss_all=data.frame(p=seq(0.05, 0.99, by = 0.01), loss_all=loss_all)
+
+# get the probability for the lowest loss
+row = which.min(loss_all[,2])
+print (loss_all[row,])
+
+# plot 
+p = ggplot(loss_all, aes(x=p, y=loss_all))+geom_point()+geom_line()
+p = p + geom_point(data = loss_all[row,],aes(x=p, y= loss_all), color = 'red',size=3)
+p = p + geom_text(aes(0.87, 888), label=paste('best P=',round(loss_all[row,1],2)))
+p
+```
+
+Thus the cost will be minimized when the probability is set to **0.87**.
+

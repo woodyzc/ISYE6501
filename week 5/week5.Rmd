@@ -1,0 +1,160 @@
+---
+title: "week 5"
+author: "Chong Zhang"
+date: "February 9, 2018"
+output: html_document
+---
+
+# explore the data
+```{r cache=TRUE}
+library(dplyr)
+library(ggplot2)
+library(outliers)
+library(gridExtra)
+crime = read.table(file = 'uscrime.txt', sep = '', header = T)
+
+# arange the data in a descending manner
+crime_desc = arrange(crime, desc(Crime)) 
+# plot the data with boxpolt
+p1 = ggplot(data = crime_desc, aes(x = '', y =Crime))+geom_boxplot()+xlab('Crime')
+
+p2 = ggplot(data = crime_desc, aes(x = 1:47, y =Crime))+geom_bar(stat="identity")+labs(x = 'Cities')
+
+p3 = ggplot(data = crime_desc, aes(x =Crime))+ 
+  geom_histogram(aes(y=..density..), colour="black", fill="yellow", bins = 20)+
+  geom_vline(aes(xintercept=mean(Crime)), color = 'blue', size = 3)+ 
+  geom_density(color = 'red', fill="#FF6666", alpha = 0.2)
+
+grid.arrange(p3, arrangeGrob(p1,p2, ncol =2),ncol=1)
+
+qqnorm(scale(crime$Crime))
+qqline(scale(crime$Crime))
+
+```
+
+From the boxplot, we see there are couple of cities that have crime rates higher than the rest of the data. It might indicate that there data point could be outliers.
+
+From bar plot, we see that there is a dramatic decrease in crime after the first two and five cities. 
+
+From the histogram, we see that the data, overall, seems to be normally distributed, with extended right tail. It keeps wonder which those cities are. Mightbe Chicago or Baltimore? I heard from the news that the last year, the homicide rate in Chicago skyrocked.
+
+From the Quantile-Quantile Plot, we can see that over all the samples are normally distributed. With some exceptions at the higher end. 
+
+## test whether there are outliers.
+```{r cache=TRUE}
+result = grubbs.test(x = crime_desc$Crime, type = 10, opposite = FALSE) 
+print (result$alternative)
+print (result$p.value)
+
+result = grubbs.test(x = crime_desc$Crime, type = 10, opposite = TRUE) 
+print (result$alternative)
+print (result$p.value)
+```
+
+Based on the p-value of the test, **neither the highest or lowest crime cities are outliers**, if we set the thershold at **p<0.05** to reject the null hypothesis
+However, 0.0788 is quite close to 0.05, and visually there are couple of data are seemed to be outliers. So I decided to easy-up the criteria. I decide to set the thershold to **0.1**. In this case, the highest value 1993 is an outlier. Then I go on to test whether the second highest number is outlier or not. For this process, I will use a for loop to remove the outliers until p.value goes beyond 0.1
+
+```{r cache=TRUE, fig.height=3,fig.width=6}
+outliers = c()
+for (i in 1:length(crime_desc$Crime)){
+  if (i == 1){
+    result = grubbs.test(x = crime_desc$Crime, type = 10, opposite = F)
+    if (result$p.value < 0.1){
+    outliers = c(outliers,crime_desc$Crime[i])
+    }
+  }
+  else{
+    result = grubbs.test(x = crime_desc$Crime[-c(1:i-1)], type = 10, opposite = F) 
+    if (result$p.value < 0.1){
+    outliers = c(outliers,crime_desc$Crime[i])
+    }
+    if ((result$p.value > 0.1)){
+      break
+    }
+  }
+}
+print (outliers)
+p = ggplot(data = crime_desc, aes(x = 1:47, y =Crime))+geom_bar(stat="identity",aes(fill = Crime<outliers[2]))+labs(x = 'cities')
+p = p + scale_fill_manual(values = c('red','grey'))+ theme(legend.position="none")
+p
+
+#remove the outliers
+crime_desc = crime_desc[-c(1,2),]
+```
+
+Thus ```r outliers``` are outliers. Thus those two data points should be removed from the whole data set.
+
+
+# look at the relationship between each predictor and the crime
+```{r cache=TRUE, fig.height=3,fig.width=3}
+
+for (i in 1:(ncol(crime_desc)-1)){
+  p= ggplot(data = crime_desc, aes(x=crime_desc[i], y = crime_desc$Crime))+geom_point()+geom_smooth(method='lm')
+  p = p + scale_x_continuous()+xlab(as.character(colnames(crime_desc)[i]))+ylab('Crime')
+  print (p)
+}
+```
+
+It seems that some of those predictors do not have a strong correlation with the response "crime". For example, no matter how **So** and **NW** change, the **Crime** stays the same. On the other hand, **Po1** and **Po2** have very strong positive correlation with the **Crime**. It is intuitive to think that we should include the predictors that have strong correlations with the dependent variable. However it is not always the case. Sometimes, predictor A could be highly correlated with another predictor B. When the outcome depends on the predictor B, because A is highly correlated with B, which leads to a correlation with the outcome also. Once the effects of B are **partialled out** by including B in the model, no such relationship remains. 
+
+# Building the linear regression model
+```{r cache=TRUE}
+# First I build the LM model with all the predictors
+lm_model = lm(formula = Crime~., data = crime_desc)
+summary(lm_model)
+```
+
+From the sumamry of the linear model, we can see that a lot of predictors have a p-value significantly larger than the thershold of 0.05. The **adjusted R-squred** is **0.5583**  Thus it is not appropriate to use all those predictors. I start to choose the predictors that have a p-value close to or smaller than 0.1. Thus I chose **M, Ed, Po1, U2, Ineq, Prob**.
+```{r cache=TRUE}
+lm_model_1 = lm(Crime~M+Ed+Po1+U2+Ineq+Prob, data = crime_desc)
+summary(lm_model_1)
+
+```
+
+This time almost all the p-values for predictors are smaller than 0.05. The **adjusted R-squred** is **0.6013**, which is also improved.
+
+I also tried another method called "stepwise" based on AIC. This **step** function can automatically select a model based on the AIC scores.
+```{r cache=TRUE}
+# feed the linear regression model based on all predictors to the step function
+step_lm_model = step(lm_model,trace = F)
+summary(step_lm_model)
+```
+
+In the end, the step function chose 8 predictors to use. They are **M, Ed, Po1, Pop, U1, U2, Ineq, Prob**. This time the **adjusted R-squred** is **0.6144**.
+
+I also tried Cross-Validation for this linear regression model.
+```{r cache=TRUE}
+#load the DAAG package
+library(DAAG)
+# use 10 folds cross-validation for linear regression
+cv_lm_model = cv.lm(data = crime_desc, form.lm = lm_model, m = 10)
+
+# build the model based on the cross-validation results
+lm_model_2 = lm(Crime~Ed + Po1 + Ineq + Prob, data = crime_desc)
+summary(lm_model_2)
+```
+
+With the 10-fold cross validation, I see that **Ed, Po1, U2, Ineq, Prob** were selected to construct the model. The **adjusted R-squred** is **0.534**.
+
+After reviewing all the model I have built so far. I decided to use **M, Ed, Po1, Pop, U1, U2, Ineq, Prob** for my final model.
+```{r cache=TRUE}
+# model formule
+final_lm_model = lm(formula = Crime~M+Ed+Po1+Pop+U1+U2+Ineq+Prob, data = crime_desc)
+
+# software output
+summary(final_lm_model)
+
+# get the coefficients
+final_lm_model$coefficients
+
+# the quality of fit
+p = ggplot(data = crime_desc, aes(x=Crime, y=final_lm_model$fitted.values))+geom_point()
+p = p + geom_smooth(mapping = aes(x=Crime, y=final_lm_model$fitted.values),method = 'lm')
+p = p + xlab('Original Data') + ylab('Fitted data') + geom_text(aes(1400, 1500), label = paste('adjusted R-square = ',round(summary(final_lm_model)$adj.r.squared,3)))
+p
+# predict the value
+newdata=data.frame(M = 14.0,So = 0,Ed = 10.0,Po1 = 12.0,Po2 = 15.5,LF = 0.640,M.F = 94.0,Pop = 150,NW = 1.1,U1 = 0.120,U2 = 3.6,Wealth = 3200,Ineq = 20.1,Prob = 0.04,Time = 39.0)
+
+print (paste('The predicted Crime rate is:', round(predict(object = final_lm_model, newdata))))
+
+```

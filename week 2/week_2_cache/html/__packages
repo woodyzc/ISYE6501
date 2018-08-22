@@ -1,0 +1,6 @@
+base
+kernlab
+kknn
+ggplot2
+dplyr
+bindrcpp

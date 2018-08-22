@@ -1,0 +1,138 @@
+---
+title: "week 4"
+author: "Chong Zhang"
+date: "February 1, 2018"
+output: html_document
+---
+
+```{r load data and libraries, cache=TRUE}
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(reshape2)
+temps = read.table('temps.txt', sep = '', header = T,stringsAsFactors = F)
+```
+
+I apply the CUSUM method to the whole data set.
+```{r cache=TRUE}
+year = colnames(temps)[-1] # store the name of all years
+summer_end_date = c()
+
+# interate over each year
+for (n in year){
+  S = c() # initialize the collection of S
+  S[1] = 0 # set initial S to be 0
+  u = mean(temps[,n]) # get average temp
+  C = sd(temps[,n])*1/2 # set the constant C to be one quarter of the standard deviation
+  t = 4*sd(temps[,n]) # set T to be 4 times of the standard deviation
+  date_CUSUM = c()
+  # interate over each day in that year to calculate the CUSUM
+  for (i in 1:nrow(temps)){
+    S[i+1] = max(0, (S[i] + (u-temps[i,n])-C))
+    if (S[i+1] > t){
+      date_CUSUM = c(date_CUSUM, temps[i, 'DAY'])# store the day that detects a change
+    }
+  }
+  print (paste(date_CUSUM[1],substr(n,2,5)))
+  # get the summer ending date for each year
+  summer_end_date = c(summer_end_date, date_CUSUM[1]) 
+}
+
+end_date_year = as.data.frame(seq(1:(ncol(temps)-1)))
+end_date_year['year'] = as.numeric(substr(year,2,5))
+end_date_year['end_date'] = as.Date(summer_end_date, format ='%d-%b')
+
+p = ggplot(end_date_year, aes(x=year, y=end_date))+labs(y='summer end date')
+p = p + geom_point()+scale_x_continuous(breaks = end_date_year$year)+geom_line()
+p = p + scale_y_date(date_breaks = '3 days',date_labels = '%d-%b')
+p = p + theme(axis.text.x = element_text(angle = 45))
+p
+```
+
+After obtain all the dates for unofficial summer ending, I convert them into number of days in that years starting from Jan 1st. For example, Jan 5th is 5, Feb 1st is 32. Then I used Exponential Smoothing to build a model. Based on this model, I can see the trend of changes in the summer ending dates. I can also predict the future summer ending dates.
+```{r cache=TRUE}
+#convert the date into the number of days starting from Jan 1st. For example, Jan 5th is 5, Feb 1st is 32.
+number_of_days = yday(end_date_year$end_date)
+# Convet the date to time series
+ts_number_of_days = ts(data = number_of_days, start = 1996,end = 2015,frequency = 1)
+
+# rebuild the ES model using the a&b combination and plot it
+es = HoltWinters(x = ts_number_of_days, gamma = F)
+forecast <- predict(es, n.ahead = 5, prediction.interval = T, level = 0.95)
+plot(es, forecast)
+
+#using ggplot2 to plot this 
+forecast_df =data.frame(time=time(forecast), predicted_value = forecast[,1], std = forecast[,2]-forecast[,1])
+
+fitted_df = data.frame(time=time(es$fitted), fitted_value=es$fitted[,1])
+
+actual_df = data.frame(time=time(es$x), actual_value=es$x)
+
+graphset=merge(actual_df,fitted_df,by='time',all=TRUE)
+graphset=merge(graphset,forecast_df,by='time',all=TRUE)
+graphset[is.na(graphset$std),  ]$std<-0
+graphset$fitted=c(rep(NA, NROW(graphset)-(NROW(forecast_df) + NROW(fitted_df))),  fitted_df$fitted_value,  forecast_df$predicted_value)
+
+
+
+p=ggplot(graphset) + 
+  geom_line(aes(x= time,y=actual_value, color='red'), size=1) + 
+  geom_line(aes(x= time,y=fitted, color='green'), size=1)+
+  geom_line(aes(x=time, y=predicted_value, color ='blue'),size=1)+
+  geom_vline(xintercept = (max(actual_df$time)),  lty=2) + 
+  geom_ribbon(aes(x=time, ymin=fitted-std, ymax=fitted+std), fill="purple", alpha=0.2)+
+  xlab('Time') + ylab('Value') + scale_colour_hue(labels=c('predicted','es-fitted','actual'))
+p
+```
+
+There are multiple ways of solving this problem. Besides the
+```{r cache=T}
+#creat the time series that contains all the data
+ts_all = ts(unlist(temps[,-1]), start = c(1996,1), end =c(2015, 123), frequency = 123 )
+#build the ES model with time series data
+es = HoltWinters(x = ts_all)
+
+# store xhat, level, trend and season in a dataframe
+es_value  = as.data.frame(es$fitted)
+es_value$time=as.character(time(es$fitted))
+actual_data = data.frame('time'=as.character(time(ts_all)),'actual' = unlist(temps[,-1]))
+es_value = merge(es_value, actual_data, by='time',all = T)
+es_value$time = as.numeric(es_value$time)
+
+# visulize the fitted model together with the actual data
+p = ggplot(data = es_value, aes(x=time))+
+  geom_line(aes(y=xhat, color ='fitted'))+
+  geom_line(aes(y=actual, color='actual'))+
+  ylab('temperature')+xlab('time')+
+  scale_colour_hue(labels=c('fitted', 'actual'))
+p
+
+p = ggplot(data = es_value,aes(x=time, y= season))+
+  geom_line()+xlab('time')+geom_hline(aes(yintercept = mean(season,na.rm = T)),color='red',size=2)
+p
+
+season = as.data.frame(matrix(es_value$season, nrow = 123,ncol = 20))
+season = season[,-1]
+rownames(season)= temps[,1]
+colnames(season) = c(1997:2015)
+
+end_date=c()
+for (i in colnames(season)){
+  date_CUSUM = c()
+  S=c()
+  S[1] = 0
+  u = mean(season[,i])
+  C = sd(season[,i])/2
+  t = sd(season[,i])*4
+  for (n in 1:nrow(season)){
+    S[n+1] = max(0, (S[n] + (u-season[n,i])-C))
+    if (S[n+1] >t){
+      date_CUSUM = c(date_CUSUM, rownames(season)[n])
+    }
+  }
+  end_date = c(end_date, date_CUSUM[1])
+}
+
+plot(as.Date(end_date, format = '%d-%b'))
+
+```

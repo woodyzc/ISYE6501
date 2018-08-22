@@ -1,0 +1,113 @@
+---
+title: "week 6"
+author: "Chong Zhang"
+date: "February 20, 2018"
+output: html_document
+---
+
+
+# explore the data
+```{r cache=TRUE, message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(outliers)
+library(gridExtra)
+crime = read.table(file = 'uscrime.txt', sep = '', header = T)
+
+# arange the data in a descending manner
+crime_desc = arrange(crime, desc(Crime)) 
+# plot the data with boxpolt
+p1 = ggplot(data = crime_desc, aes(x = '', y =Crime))+geom_boxplot()+xlab('Crime')
+
+p2 = ggplot(data = crime_desc, aes(x = 1:47, y =Crime))+geom_bar(stat="identity")+labs(x = 'Cities')
+
+p3 = ggplot(data = crime_desc, aes(x =Crime))+ 
+  geom_histogram(aes(y=..density..), colour="black", fill="yellow", bins = 20)+
+  geom_vline(aes(xintercept=mean(Crime)), color = 'blue', size = 3)+ 
+  geom_density(color = 'red', fill="#FF6666", alpha = 0.2)
+
+grid.arrange(p3, arrangeGrob(p1,p2, ncol =2),ncol=1)
+
+qqnorm(scale(crime$Crime))
+qqline(scale(crime$Crime))
+
+```
+
+From the boxplot, we see there are couple of cities that have crime rates higher than the rest of the data. It might indicate that there data point could be outliers.
+
+From bar plot, we see that there is a dramatic decrease in crime after the first two and five cities. 
+
+From the histogram, we see that the data, overall, seems to be normally distributed, with extended right tail. It keeps wonder which those cities are. Mightbe Chicago or Baltimore? I heard from the news that the last year, the homicide rate in Chicago skyrocked.
+
+From the Quantile-Quantile Plot, we can see that over all the samples are normally distributed. With some exceptions at the higher end. 
+
+## test whether there are outliers.
+```{r cache=TRUE, message=FALSE}
+result = grubbs.test(x = crime_desc$Crime, type = 10, opposite = FALSE) 
+print (result$alternative)
+print (result$p.value)
+
+result = grubbs.test(x = crime_desc$Crime, type = 10, opposite = TRUE) 
+print (result$alternative)
+print (result$p.value)
+```
+
+Based on the p-value of the test, **neither the highest or lowest crime cities are outliers**, if we set the thershold at **p<0.05** to reject the null hypothesis
+However, 0.0788 is quite close to 0.05, and visually there are couple of data are seemed to be outliers. So I decided to easy-up the criteria. I decide to set the thershold to **0.1**. In this case, the highest value 1993 is an outlier. Then I go on to test whether the second highest number is outlier or not. For this process, I will use a for loop to remove the outliers until p.value goes beyond 0.1
+
+```{r cache=TRUE, fig.height=3,fig.width=6, message=FALSE}
+outliers = c()
+for (i in 1:length(crime_desc$Crime)){
+  if (i == 1){
+    result = grubbs.test(x = crime_desc$Crime, type = 10, opposite = F)
+    if (result$p.value < 0.1){
+    outliers = c(outliers,crime_desc$Crime[i])
+    }
+  }
+  else{
+    result = grubbs.test(x = crime_desc$Crime[-c(1:i-1)], type = 10, opposite = F) 
+    if (result$p.value < 0.1){
+    outliers = c(outliers,crime_desc$Crime[i])
+    }
+    if ((result$p.value > 0.1)){
+      break
+    }
+  }
+}
+print (outliers)
+p = ggplot(data = crime_desc, aes(x = 1:47, y =Crime))+geom_bar(stat="identity",aes(fill = Crime<outliers[2]))+labs(x = 'cities')
+p = p + scale_fill_manual(values = c('red','grey'))+ theme(legend.position="none")
+p
+
+#remove the outliers
+crime_desc = crime_desc[-c(1,2),]
+
+p = ggplot(data = crime_desc, aes(x =Crime))+ 
+  geom_histogram(aes(y=..density..), colour="black", fill="yellow", bins = 20)+
+  geom_vline(aes(xintercept=mean(Crime)), color = 'blue', size = 3)+ 
+  geom_density(color = 'red', fill="#FF6666", alpha = 0.2)
+
+p
+```
+
+# PCA analysis
+```{r cache=TRUE, message=FALSE}
+# perform PCA on scaled data for the all the variables
+pca = prcomp(x = crime_desc[,1:15], scale. = T)
+
+# show the summary of PCA
+summary(pca)
+```
+
+It looks like that the first 5 Principle Components can explain 86% of the variance in the data. Thus I decied to use the first five PC to build my linear regression model.
+
+# build linear regression model
+```{r cache=TRUE}
+PC_data = pca$x[,1:6] %>% as.data.frame()
+PC_data$Crime = crime_desc$Crime
+lm_1 = lm(Crime~., data = PC_data)
+summary(lm_1)
+lm_2 = lm(Crime~PC1+PC2+PC5+PC6, data= PC_data)
+summary(lm_2)
+
+```

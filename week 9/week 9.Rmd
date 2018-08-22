@@ -1,0 +1,51 @@
+---
+title: "week 9"
+author: "Chong Zhang"
+date: "March 14, 2018"
+output: html_document
+---
+#12.1
+I am working in a lab that conducts plant pahtology study. When we want to know the response of plant to a centrain kind of fungal pathogen. We would perform infection experiments. Since it is impossible to collect all sample from differernt tissues, environments and cultivares, we can use a design of experiment approch. We can collect samples from representative tissue such as leaves, fruits and stems. Also we can collect samples from plants grown in the green house and field, as well as different cultivares. We can use a fractional factorial approches in collecting samples. In the end, we can look at the response of plants to such pathogens to determine how serious the smyptons that the pathogen can cause, and under what conditions the symptons are most severe.
+
+
+#12.2
+## fractional factorial design for 16 houses each with 10 2-level factor features
+```{r cache=TRUE}
+library(FrF2)
+
+set.seed(666)
+
+# the house has 10 festures
+features = c('large year', 'solar roof',
+             'detached garage', 'two-stories',
+             'remodeled kitchen', 'carpet floor',
+             'fenced yard', 'new appliances',
+             'newly-built', 'flood-zone')
+
+# there are 16 houses
+n = 16
+
+# fractional factorial design
+ffd = FrF2(nruns = n, nfactors = length(features), factor.names = features)
+
+ffd
+```
+
+From the result, we can see a good combination of fractional factors the realtor can show to his/her clinets.
+
+# 13.1
+## Binomial Distribution
+One day, when I am sitting next to a table and getting bored, I decide to throw a Pingpong ball into a glass on the table. Each individual throw is a Bernoulli event. If I continue doing this for **n** times. The probability of **k** times that I can successfully get the ball inside the glass follow a **binomial distribution**.
+
+## Geometric Distribution
+Another day, when I am sitting next to a table and getting bored, I decide to throw a Pingpong ball into a glass on the table. The probability of **k** times that I fail to get the ball inside the glass before the first success follow a **Geometric distribution**.
+
+## Poisson Distribution
+The number of iPhone X that an Apple store sells in a day follows **Poisson Distribution**
+
+## Exponential Distribution
+The amount of time between two iPhone X an Apple store sells follows **Exponential Distribution**
+
+## Weibull Distribution
+In a factory that manufacturers iPhoneX. The amount of times that between two defective iPhoneX is built follows a **Weibull Distribution**
+

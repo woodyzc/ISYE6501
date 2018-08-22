@@ -1,0 +1,48 @@
+---
+title: "week 8"
+author: "Chong Zhang"
+date: "March 5, 2018"
+output: html_document
+---
+
+#11.1.1
+## Stepwise regression
+```{r cache=TRUE}
+library(ggplot2)
+library(dplyr)
+crime = read.csv('uscrime.txt',header = T, sep = '')
+
+# build the initial linear regression model based on all variables
+lm_1 = lm(Crime~. , data = crime)
+
+# using the step function to perform a stepwise regression to select the best variables
+step_lm_1 = step(lm_1, scope =list(lower=Crime~1, upper=Crime~.), direction = 'both')
+summary(step_lm_1)
+call = step_lm_1$call
+
+# plot the fitted values against the actual values
+df = data.frame(actual=crime$Crime, fitted=step_lm_1$fitted.values)
+p = ggplot(data = df, aes(x= actual, y= fitted))+
+  geom_point()+
+  geom_smooth(method ='lm')+
+  geom_text(aes(1000,1500), label='adjusted R-squared = 0.744',color='red')
+p
+```
+  
+Thus we can see that with the help from stepwise regression, we select **Crime ~ M + Ed + Po1 + M.F + U1 + U2 + Ineq + Prob** as our final model. The coefficients are **```r step_lm_1$coefficients```**
+
+#11.1.2
+##Lasso
+```{r cache=T}
+library(glmnet)
+set.seed(666)
+# First we have to scale the data for lasso, the SO variable is binary, so we don't have to scale it.
+scaled_crime = scale(crime[,-c(2,16)])%>%as.data.frame()
+scaled_crime$So = crime$So
+
+
+# setting alpha to be 1 for Lasso
+lasso= cv.glmnet(x = as.matrix(scaled_crime), y = as.matrix(crime$Crime), family = 'gaussian', alpha = 1,nfolds = 5, type.measure = 'mse')
+coefficinets = coef(lasso,s=lasso$lambda.min)
+round(coefficinets)
+```

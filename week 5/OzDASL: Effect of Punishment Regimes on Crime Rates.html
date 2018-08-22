@@ -1,0 +1,228 @@
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<meta name="GENERATOR" content="Microsoft FrontPage 6.0">
+<meta name="description" content="Crime rate and associated statistics for 47 US states in 1960. Data for teachers of statistics in Australia and New Zealand.">
+<meta name="local.usage" content="MS304 1998 Exam.">
+<link rel="stylesheet" type="text/css" href="../../res.css">
+<title>OzDASL: Effect of Punishment Regimes on Crime Rates</title>
+</head>
+
+<body>
+
+<!--webbot bot="Include" U-Include="../../_private/sitelogo.html" TAG="BODY" startspan -->
+
+<table border="0" cellpadding="0" cellspacing="0">
+  <tr>
+    <td><img border="0" src="../../images/statsci24.png" width="148" height="27"></td>
+    <td>
+<font face="arial, helvetica, sans-serif"><b>&nbsp;/</b>
+<small><a href="../../index.html">Home</a></small></font></td>
+  </tr>
+</table>
+
+<!--webbot bot="Include" i-checksum="65040" endspan -->
+
+<p class="parent"><a href="../index.html">OzDASL</a></p>
+
+<h1>Effect of Punishment Regimes on Crime Rates</h1>
+
+<p>Keywords: multiple regression, best subsets, causality.</p>
+
+<hr>
+
+<h2>Description</h2>
+
+<p>Criminologists are interested in the effect of punishment regimes on crime rates. This
+has been studied using aggregate data on 47 states of the USA for 1960. The data set contains the following columns:
+</p>
+
+<table cellspacing="1" cellpadding="0" height="365">
+  <tr>
+    <td width="20" height="19">&nbsp;</td>
+    <td height="19">Variable</td>
+    <td width="20" height="19">&nbsp;</td>
+    <td height="19">Description</td>
+  </tr>
+  <tr>
+    <td width="20" height="19"></td>
+    <td height="19">M</td>
+    <td width="20" height="19"></td>
+    <td height="19">percentage of males aged 14&#150;24 in total state 
+	population</td>
+  </tr>
+  <tr>
+    <td width="20" height="22"></td>
+    <td height="22">So</td>
+    <td width="20" height="22"></td>
+    <td height="22">indicator variable for a southern state </td>
+  </tr>
+  <tr>
+    <td width="20" height="22"></td>
+    <td height="22">Ed</td>
+    <td width="20" height="22"></td>
+    <td height="22">mean years of schooling of the population aged 25 years or 
+	over</td>
+  </tr>
+  <tr>
+    <td width="20" height="22"></td>
+    <td height="22">Po1</td>
+    <td width="20" height="22"></td>
+    <td height="22">per capita expenditure on police protection in 1960 </td>
+  </tr>
+  <tr>
+    <td width="20" height="22"></td>
+    <td height="22">Po2</td>
+    <td width="20" height="22"></td>
+    <td height="22">per capita expenditure on police protection in 1959 </td>
+  </tr>
+  <tr>
+    <td width="20" height="22"></td>
+    <td height="22">LF</td>
+    <td width="20" height="22"></td>
+    <td height="22">labour force participation rate of civilian urban males in 
+	the age-group 14-24</td>
+  </tr>
+  <tr>
+    <td width="20" height="22"></td>
+    <td height="22">M.F</td>
+    <td width="20" height="22"></td>
+    <td height="22">number of males per 100 females </td>
+  </tr>
+  <tr>
+    <td width="20" height="22"></td>
+    <td height="22">Pop</td>
+    <td width="20" height="22"></td>
+    <td height="22">state population in 1960 in hundred thousands</td>
+  </tr>
+  <tr>
+    <td width="20" height="22"></td>
+    <td height="22">NW</td>
+    <td width="20" height="22"></td>
+    <td height="22">percentage of nonwhites in the population </td>
+  </tr>
+  <tr>
+    <td width="20" height="22"></td>
+    <td height="22">U1</td>
+    <td width="20" height="22"></td>
+    <td height="22">unemployment rate of urban males 14&#150;24 </td>
+  </tr>
+  <tr>
+    <td width="20" height="22"></td>
+    <td height="22">U2</td>
+    <td width="20" height="22"></td>
+    <td height="22">unemployment rate of urban males 35&#150;39 </td>
+  </tr>
+  <tr>
+    <td width="20" height="22"></td>
+    <td height="22">Wealth</td>
+    <td width="20" height="22"></td>
+    <td height="22">wealth: median value of transferable assets or family income</td>
+  </tr>
+  <tr>
+    <td width="20" height="22"></td>
+    <td height="22">Ineq</td>
+    <td width="20" height="22"></td>
+    <td height="22">income inequality: percentage of families earning below half 
+	the median income</td>
+  </tr>
+  <tr>
+    <td width="20" height="22"></td>
+    <td height="22">Prob</td>
+    <td width="20" height="22"></td>
+    <td height="22">probability of imprisonment: ratio of number of commitments 
+	to number of offenses</td>
+  </tr>
+  <tr>
+    <td width="20" height="22"></td>
+    <td height="22">Time</td>
+    <td width="20" height="22"></td>
+    <td height="22">average time in months served by offenders in state prisons 
+	before their first release</td>
+  </tr>
+  <tr>
+    <td width="20" height="22"></td>
+    <td height="22">Crime</td>
+    <td width="20" height="22"></td>
+    <td height="22">crime rate: number of offenses per 100,000 population in 
+	1960</td>
+  </tr>
+</table>
+
+<h2>Download</h2>
+
+<p><a href="uscrime.txt">Data File</a> (tab-delimited text)</p>
+
+<h2>Source</h2>
+
+<table border="0" cellspacing="3" cellpadding="2">
+  <tr>
+    <td>Ehrlich, I. (1973) Participation in illegitimate activities: a theoretical and
+    empirical investigation. <em>Journal of Political Economy</em> 81, 521&#150;565. </td>
+  </tr>
+  <tr>
+    <td>Vandaele, W. (1978) Participation in illegitimate activities: Ehrlich revisited. In
+    <i>Deterrence and Incapacitation</i>, eds A. Blumstein, J. Cohen and D. Nagin,&nbsp; 
+	National Academy of Sciences, Washington DC, pp. 270&#8211;335.</td>
+  </tr>
+  <tr>
+    <td>Venables, W., and Ripley, B. (1998). <em>Modern Applied Statistics with S-Plus, Second
+    Edition</em>. Springer-Verlag. </td>
+  </tr>
+</table>
+
+<p>The data given here is rounded data taken from Vandaele (1978). The column 
+scales differ somewhat from Venables and Ripley (1998). The data was originally 
+collected by Ehrlich from the <em>Uniform Crime Report</em> of the FBI and other US
+government sources.</p>
+
+<h2>Analysis</h2>
+
+<ul>
+  <li>Only one of Po1 and Po2, and only one of U1 and U2, remain in the final regression,
+    because of high collinearity.</li>
+  <li>Data gives association not causal relationships. For example, does crime really increase
+    with police expenditure?</li>
+  <li>Crime is negatively associated with probability of imprisonment.</li>
+  <li>Crime is slightly better modelled on a log scale.</li>
+</ul>
+
+<h2>Example Analysis</h2>
+<p>This analysis uses R 2.6.0 <a href="http://www.r-project.org">
+http://www.r-project.org</a></p>
+<pre>&gt; UScrime &lt;- read.delim(&quot;http://www.statsci.org/data/general/uscrime.txt&quot;)
+&gt; lm.crime &lt;- lm(Crime~., data=UScrime)
+&gt; summary(lm.crime,cor=F)
+&gt; library(leaps)
+&gt; leaps.crime &lt;- leaps(UScrime[,1:15],UScrime$Crime,nbest=2)
+&gt; leaps.tab &lt;- data.frame(p=leaps.crime$size,Cp=leaps.crime$Cp)
+&gt; round(leaps.tab,2)
+&gt; lm.crime &lt;- lm(Crime~M+Ed+Po1+U2+Ineq+Prob,data=UScrime)
+&gt; summary(lm.crime)</pre>
+
+<hr>
+<!--webbot bot="Include" U-Include="../../_private/signres.html" TAG="BODY" startspan -->
+<div align="center"><center>
+
+<table border="0" cellpadding="0" cellspacing="0">
+  <tr>
+    <td height="30"></td>
+  </tr>
+  <tr>
+    <td align="center"><form align="center" action="http://www.statsci.org/cgibin/searchwg.pl" method="get" name="SearchForm">
+      <p><font face="arial, helvetica, sans-serif"><input type="text" size="32" name="Terms"> <input type="submit" value="Search"> <font size="2"><a href="../../search.html">Help</a></font></font></p>
+    </form>
+    </td>
+  </tr>
+  <tr>
+    <td align="center" valign="bottom" height="50">
+    <font face="arial, helvetica, sans-serif"><small>
+    <a href="../../index.html">Home</a> - <a href="../../about.html">About Us</a> -
+    <a href="../../contact.html">Contact Us</a><br>
+    Copyright &copy; <a href="../../smyth/index.html">Gordon Smyth</a></small></font></td>
+  </tr>
+</table>
+</center></div>
+<!--webbot bot="Include" i-checksum="55924" endspan -->
+</body>
+</html>

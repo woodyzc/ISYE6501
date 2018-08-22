@@ -1,0 +1,210 @@
+---
+title: "week 3"
+author: "Chong Zhang"
+date: "January 25, 2018"
+output: html_document
+---
+
+```{r load data and libraries, cache=TRUE}
+library(outliers)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+crime = read.table('uscrime.txt', sep = '', header = T)%>%tbl_df()
+```
+
+#5.1
+##Explore the data
+```{r cache=TRUE}
+head(crime)
+# arange the data in a descending manner
+crime_desc = arrange(crime, desc(Crime)) 
+# plot the data with boxpolt
+p = ggplot(data = crime_desc, aes(x = 'Crime', y =Crime))+geom_boxplot()
+p 
+p = ggplot(data = crime_desc, aes(x = 1:47, y =Crime))+geom_bar(stat="identity")+labs(x = 'cities')
+p
+p = ggplot(data = crime_desc, aes(x =Crime))
+p = p + geom_histogram(aes(y=..density..), colour="black", fill="yellow", bins = 20)
+p = p + geom_vline(aes(xintercept=mean(Crime)), color = 'blue', size = 3)
+p = p + geom_density(color = 'red', fill="#FF6666", alpha = 0.2)
+p
+qqnorm(scale(crime$Crime))
+qqline(scale(crime$Crime))
+```
+
+From the boxplot, we see there are couple of cities that have crime rates higher than the rest of the data. It might indicate that there data point could be outliers.
+
+From bar plot, we see that there is a dramatic decrease in crime after the first two and five cities. 
+
+From the histogram, we see that the data, overall, seems to be normally distributed, with extended right tail. It keeps wonder which those cities are. Mightbe Chicago or Baltimore? I heard from the news that the last year, the homicide rate in Chicago skyrocked.
+
+From the Quantile-Quantile Plot, we can see that over all the samples are normally distributed. With some exceptions at the higher end. 
+## test whether there are outliers.
+```{r cache=TRUE}
+result = grubbs.test(x = crime_desc$Crime, type = 10, opposite = FALSE) 
+print (result$alternative)
+print (result$p.value)
+
+result = grubbs.test(x = crime_desc$Crime, type = 10, opposite = TRUE) 
+print (result$alternative)
+print (result$p.value)
+```
+
+Based on the p-value of the test, **neither the highest or lowest crime cities are outliers**, if we set the thershold at **p<0.05** to reject the null hypothesis
+However, 0.0788 is quite close to 0.05, and visually there are couple of data are seemed to be outliers. So I decided to easy-up the criteria. I decide to set the thershold to **0.1**. In this case, the highest value 1993 is an outlier. Then I go on to test whether the second highest number is outlier or not. For this process, I will use a for loop to remove the outliers until p.value goes beyond 0.1
+
+```{r cache=TRUE}
+outliers = c()
+for (i in 1:length(crime_desc$Crime)){
+  if (i == 1){
+    result = grubbs.test(x = crime_desc$Crime, type = 10, opposite = F)
+    if (result$p.value < 0.1){
+    outliers = c(outliers,crime_desc$Crime[i])
+    }
+  }
+  else{
+    result = grubbs.test(x = crime_desc$Crime[-c(1:i-1)], type = 10, opposite = F) 
+    if (result$p.value < 0.1){
+    outliers = c(outliers,crime_desc$Crime[i])
+    }
+    if ((result$p.value > 0.1)){
+      break
+    }
+  }
+}
+print (outliers)
+p = ggplot(data = crime_desc, aes(x = 1:47, y =Crime))+geom_bar(stat="identity",aes(fill = Crime<outliers[2]))+labs(x = 'cities')
+p = p + scale_fill_manual(values = c('red','grey'))+ theme(legend.position="none")
+p
+```
+
+Thus ```r outliers``` are outliers.
+
+#6.1
+I perform Next-Generation-Sequencing on plant fungal pathogen genome regularly. The sequencing platform is a very delicate machine. Slight changes in some critical setting can dramatically change the results. Thus it is very important to keep monitor some of those settings. For example, the amount of buffer taken by the pump has to be very precise. We can use CUSUM method to monitor if there are changes in the accuracy of the pump by measuring the volume of the buffer after each run. If we detect a change, it is time to call the service staff to tune the pump. Since we need high sensitivity, I would set C to be 0, and T to be 4 times of standard deviation. 
+
+#6.2.1
+Take 1996 for example. Plot the temperature day. The red line is the average temperature during the time of data collection. Blue line is the trend line based on linear regression.
+```{r cache=TRUE}
+temps = read.table(file = 'temps.txt', sep = '', header = T, stringsAsFactors = F)
+p = ggplot(data = temps, aes(x= as.Date(strptime(paste(temps$DAY, '-1996', sep = ''), "%d-%b-%Y")), y = temps$X1996))
+p = p + geom_point()+ geom_hline(aes(yintercept=mean(temps$X1996)), color = 'red', size = 1)
+p = p + scale_x_date(date_breaks = '20 days') + labs(x = 'date', y = 'temperature')
+p = p + geom_text(aes(as.Date("1996-07-01 EDT"), mean(temps$X1996),label = 'average \ntemperature', vjust = -0.2,hjust = -0.02), size = 3, fontface = 'plain', family="mono", color = 'blue')
+p = p + geom_smooth(method = 'lm')
+p
+```
+
+Take year 1996 as an example. Implement the CUSUM method to detect change in temperature to decide when the summer ended.
+```{r , cache=TRUE}
+# CUSUM method to detect changes in temperature
+S = c()
+S[1] = 0 # set initial S to be 0
+u = mean(temps[,2]) # get average temp
+C = sd(temps[,2])*1/2 # set the constant C to be one quarter of the standard deviation
+t = 4*sd(temps[,2]) # set T to be 4 times of the standard deviation
+date_CUSUM = c()
+# interate over each day in 1996 to calculate the CUSUM
+for (i in 1:nrow(temps)){
+  S[i+1] = max(0, (S[i] + (u-temps[i,2])-C))
+  if (S[i+1] > t){
+    date_CUSUM = c(date_CUSUM, temps[i, 'DAY'])# store the day that CUSUM detect a change
+  }
+}
+print (date_CUSUM[1])
+# plot the CUSUM control chart.
+date_s = as.data.frame(1:length(S[-1]))
+date_s['date'] = as.Date(strptime(paste(temps$DAY, '-1996', sep = ''), "%d-%b-%Y"))
+date_s['CUSUM'] = S[-1]
+p = ggplot(data = date_s, aes(x = as.Date(date), y = CUSUM))+ geom_line()
+p = p + geom_point()+ theme(axis.text.x=element_text(angle=45,hjust=1))
+p = p + scale_x_date(name = 'Date', date_breaks = '1 week')
+p = p + geom_hline(aes(yintercept = t),color = 'red', size = 1.5)
+p = p + geom_text(aes(as.Date("1996-07-01 EDT"), t,label = paste('T=',round(t,2),sep = ''), vjust = -1,hjust = -0.2), size = 6, fontface = 'plain', family="mono", color = 'blue')
+p = p + labs(title = 'CUSUM')
+p
+```
+
+Thus, from the data and plot we can see that **```r date_CUSUM[1]```, 1996** is the day that the summer ended.
+
+Then I apply the CUSUM method to the whole data set.
+```{r cache=TRUE}
+year = colnames(temps)[-1] # store the name of all years
+summer_end_date = c()
+
+# interate over each year
+for (n in year){
+  S = c() # initialize the collection of S
+  S[1] = 0 # set initial S to be 0
+  u = mean(temps[,n]) # get average temp
+  C = sd(temps[,n])*1/2 # set the constant C to be one quarter of the standard deviation
+  t = 4*sd(temps[,n]) # set T to be 4 times of the standard deviation
+  date_CUSUM = c()
+  # interate over each day in that year to calculate the CUSUM
+  for (i in 1:nrow(temps)){
+    S[i+1] = max(0, (S[i] + (u-temps[i,n])-C))
+    if (S[i+1] > t){
+      date_CUSUM = c(date_CUSUM, temps[i, 'DAY'])# store the day that detects a change
+    }
+  }
+  print (paste(date_CUSUM[1],substr(n,2,5)))
+  # get the summer ending date for each year
+  summer_end_date = c(summer_end_date, date_CUSUM[1]) 
+}
+
+end_date_year = as.data.frame(seq(1:(ncol(temps)-1)))
+end_date_year['year'] = as.numeric(substr(year,2,5))
+end_date_year['end_date'] = as.Date(summer_end_date, format ='%d-%b')
+
+p = ggplot(end_date_year, aes(x=year, y=end_date))+labs(y='summer end date')
+p = p + geom_point()+scale_x_continuous(breaks = end_date_year$year)+geom_line()
+p = p + scale_y_date(date_breaks = '3 days',date_labels = '%d-%b')
+p = p + theme(axis.text.x = element_text(angle = 45))
+p
+```
+
+##6.2.2
+In order to decide whether the summer climate in Atlanta has gotten warmer from 1996 to 2015. I first calcualted the average summer temperature during that time.Since we have already obtained the summer ending dates for each year, I just need to calcualte the average temperature from July 1st to the end date. After I obtain the average summer temperature, I can perform a CUSUM analysis on those data to see whether the average summer temperature for all those years changed or not. If yes, whether it was getting hotter or not.
+```{r cache=TRUE}
+summer_ave_temp = c()
+
+# interate over each year to calculate the average summer temperature
+for (n in 1:length(summer_end_date)){
+  summer = temps[1:which(temps[,1]==summer_end_date[n]),n+1]
+  summer_ave_temp = c(summer_ave_temp, mean(summer))
+}
+
+S = c() # initialize the collection of S
+S[1] = 0 # set initial S to be 0
+u = mean(summer_ave_temp) # get average temp
+C = sd(summer_ave_temp)*1/2 # set the constant C to be one quarter of the standard deviation
+t = 4*sd(summer_ave_temp) # set T to be 4 times of the standard deviation
+temp_CUSUM = c()
+for (i in 1:length(summer_ave_temp)){
+  S[i+1] = max(0, (S[i] + (summer_ave_temp[i]-u-C)))
+  if (S[i+1] > t){
+    temp_CUSUM = c(temp_CUSUM, summer_ave_temp[i])
+  }
+}
+
+# plot the CUSUM control chart
+summer_temp_year = data.frame(seq(1,20))
+summer_temp_year['year'] = substr(year,2,5)
+summer_temp_year['CUSUM'] = S[-1]
+summer_temp_year['temperature'] = as.numeric(round(summer_ave_temp,1))
+
+# The average summer temperature from 1996 to 2015 are shown as follow.
+p = ggplot(data = summer_temp_year, aes(x=year, y = temperature, group=1))+geom_point()+geom_line()
+p = p + geom_hline(aes(yintercept = mean(summer_ave_temp)), color = 'red', size =1.5)
+p = p + geom_text(aes(x=summer_temp_year$year[1], y=mean(summer_ave_temp)), label = paste('average temperature=',round(mean(summer_ave_temp),1),sep = ''), color='blue',vjust = -1.6, hjust = -0.1, size = 5)
+p = p +  theme(axis.text.x=element_text(angle=45,hjust=1))
+p
+ # plot the CUSUM control chart
+p = ggplot(summer_temp_year, aes(x=year, y = CUSUM, group =1))+geom_point()+geom_line()
+p = p + geom_hline(aes(yintercept = t),color = 'red', size = 1.5)
+p = p + geom_text(aes(x=summer_temp_year$year[1], y=t), label = paste('T=',round(t,2),sep = ''), color='blue',vjust = 1.2, hjust = -0.1, size = 8)+ theme(axis.text.x=element_text(angle=45,hjust=1))
+p
+```
+
+Thus from what is showing in the CUSUM control chart, we can see that even though there was a increase in the CUSUM after 2009, it does not reach the thershold we set. Thus the summer temperatur of Atlanta has **not** gotten warmer from 1996 to 2015.

@@ -1,0 +1,101 @@
+---
+title: "Week 1 Homework by Chong Zhang"
+output: html_document
+---
+# Question 2.1
+When I collect samples of certain specis of insects. They will use different characters of the insects to group them into subspecis. The predictors can be length, color, shape of the antena, weight and size of the eyes.
+
+
+# Question 2.2
+## Load data and library 
+First, the **credit_card_data_headers.txt** is loaded with **read.csv** function. **"sep="** is used to seperate the space.\
+**kernlab**, the library that contains function for Support Vector Machineis loaded as well.
+```{r loading data and libraries}
+library(kernlab)
+cc_info = read.csv('/home/zhang/Downloads/credit_card_data-headers.txt', sep = '')
+```
+
+## Explore the data
+It seems that the data contains **11** columns. The first 10 columns are variables. The last column is a binary reponse variable. \
+Since the scales of different attributes differ a lot. We need to perform scaling before we process the data.
+```{r exploration of the data}
+head(cc_info) # take a look at the first part of the data
+ncol(cc_info) # count how many columns in the data
+total_positive = sum(cc_info$R1) # count how many positive response in the data
+print (total_positive)
+total_negative = nrow(cc_info)-total_positive # count how many negative respons in the data
+print (total_negative)
+```
+
+## Perform SVM 
+A formual is used for SVM. **"R1~., data = cc_info"** means calcualting the classifier for the last column **R1**, which is the binary response variable, using all other variables. I also specify the classification type to be **C-svc**, which is used for factor. The kernel of **vanilladot** is used for linear classification. **C** is the cost of classification, equal to the term λ we learned in the SVM lesson. A larger **C** means the importance of a large margin outweights avoiding mistakes and classifying kown data point. There will be more points being wrongly classified in the final model for the training data. However the model will be more generalized and robust. If the C parameter gets too big, it will cause the margin to be too wide. This will cause problem when fit the model to test data, more data point will be in between the two hyperplanes, which leads to wrong classification. If the C gets too small, the SVM will overfit the training data, trying to corretly classify each individual data point. The margin will be small. It may result in a not so robust model.\
+Since different C value may affect the SVM model. So I set out to try different C value via a **for loop**. 11 C values in different magnitude are tested. They are **0.000001, 0.00001, 0.0001, 0.001, 0.01, 1, 100, 1000, 10000, 100000, 1000000**.
+
+```{r perform SVM on the data, cache=T, echo=TRUE, results='hide', message=FALSE}
+set.seed(666)
+accuracy = c()
+for (i in c(0.000001, 0.00001, 0.0001, 0.001, 0.01, 1, 100, 1000, 10000, 100000, 1000000)){
+  svm = ksvm(R1~., data = cc_info, scaled = TRUE, type = 'C-svc', C = i, kernel = 'vanilladot') # perform SVM
+  prediction = predict(object = svm, newdata = cc_info[,-11]) # predict the response
+  accuracy = c(accuracy, round(sum(prediction == cc_info[,11])/nrow(cc_info),digits = 3))
+}
+C_accuracy = cbind('value of C' = c(0.000001, 0.00001, 0.0001, 0.001, 0.01, 1, 100, 1000, 10000, 100000, 1000000), 'accuracy' = accuracy)
+```
+
+Here is the result of C and corresponding prediction accuracy.
+```{r print C_accuracy}
+print(C_accuracy)
+```
+
+It seems that when **C** is between 0.01 and 100, the accuracy of the prediction is the highest at 0.864. Since a larger **C** means a larger margin, in the situation that the accuracy stays the same, we should go with the larger **C** which is **100**.
+
+
+## Calculate the equation of SVM classifier
+Since the **ksvm** function won't give the coefficients directly, we have to do the calculation manually. **ai\*xi** for each support vector can be obtained by **xmatrix\*coef**. Then sum each **ai\*xi** together.
+```{r calculate the equation of SVM classifier, cache=T}
+a = colSums(svm@xmatrix[[1]]*svm@coef[[1]]) # calculate the coefficient for each attribute.
+a = round(a,digits = 3)
+print (a)
+a0 = svm@b
+a0 = round(a0, digits = 3)# get a0
+print (a0)
+```
+### The equation is 
+$(`r a[1]`)*X_{1}+(`r a[2]`)*X_{2}+(`r a[3]`)*X_{3}+(`r a[4]`)*X_{4}+(`r a[5]`)*X_{5}+(`r a[6]`)*X_{6}+(`r a[7]`)*X_{7}\\+(`r a[8]`)*X_{8}+(`r a[9]`)*X_{9}+(`r a[10]`)*X_{10}+`r a0` = 0$
+
+## Try other kernels
+The **vanilladot** kernel is a linear kernel. The best accuray is around 0.864. I set out to test other kernels for SVM. 
+```{r test other kernels, cache=T}
+set.seed(888)
+svm = ksvm(R1~., data = cc_info, scaled = TRUE, type = 'C-svc', C =100, kernel = 'rbfdot') # perform SVM
+prediction = predict(object = svm, newdata = cc_info[,-11]) # predict the response
+print ('when using rbfdot kernel.')
+print(paste('The accuracy of the prediction is:', round(sum(prediction == cc_info[,11])/nrow(cc_info),digits = 3))) # calculate the accuracy of the prediction
+
+set.seed(999)
+svm = ksvm(R1~., data = cc_info, scaled = TRUE, type = 'C-svc', C = 100, kernel = 'tanhdot') # perform SVM
+prediction = predict(object = svm, newdata = cc_info[,-11]) # predict the response
+print ('when using tanhdot kernel.')
+print(paste('The accuracy of the prediction is:', round(sum(prediction == cc_info[,11])/nrow(cc_info),digits = 3))) # calculate the accuracy of the prediction
+```
+It seems that when using **rbfdot** kernel, the accuracy is very high, around 0.959. On the other hand, the **tanhdot** kernel yeilds an accuracy around 0.722.
+
+
+## K-Nearest-Neighbors model
+Besides SVM, I also try to use the KNN method to predict the response. In order to get a comprehensive understanding of which K is the best choice. I decide to use **for loop** to try different k from 2 to 15. For each data point i, the ith data is removed during training, and prediction is carried out for that specific ith data point.
+```{r KNN, echo=TRUE, cache=TRUE}
+library(kknn)
+prediction_per_k = c()  # initiate an empty vector to store accuracy per k value.
+for (k in 2:15){ # try different k from 2 to 10
+  prediction = c() # initiate an empty vector to store prediction results
+  for (i in 1:nrow(cc_info)){ 
+    knn = kknn(formula = R1~., train = cc_info[-i,], test = cc_info[i,-11], k = k, scale = TRUE)
+    prediction = c(prediction, knn$fitted.values)
+  }
+  knn_accuracy = sum(round(prediction) == cc_info[,11])/nrow(cc_info) # calculate accuracy for specific k
+  prediction_per_k = c(prediction_per_k, knn_accuracy)
+}
+prediction_per_k_all = cbind('k' = 2:15, 'accuracy' = prediction_per_k)
+print (prediction_per_k_all)
+```
+It seems that the relationship between accuracy and k is not linear. Based on all the k tested, **12** and **15** yeild the best accuracy at 0.8532110.

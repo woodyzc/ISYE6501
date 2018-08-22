@@ -1,0 +1,324 @@
+---
+title: "week 2"
+author: "Chong Zhang"
+date: "January 18, 2018"
+output: html_document
+---
+
+## loading all the data and libraries
+```{r read file and load libraries}
+cc_info = read.csv('credit_card_data-headers.txt', sep = '')
+library(kernlab)
+library(kknn)
+library(ggplot2)
+library(dplyr)
+```
+
+# Question 3.1
+##3.1.a
+## KNN model
+## Cross-validation
+```{r Cross-validation, cache=TRUE}
+set.seed(6)
+# randomize the order of the original data
+cc_info_random = cc_info[sample(nrow(cc_info)),]
+
+# random sample 30% from the whole data to be used as test data
+test_index = as.numeric(sample(row.names(cc_info_random), 0.3*nrow(cc_info)))
+test = cc_info_random[test_index,]  
+
+# rest 80% are assigned for training and validation
+train_validation = cc_info_random[-test_index,] 
+
+# k is set to 10.
+k =10
+# generate the index for 10 folds
+k_fold <- cut(seq(1,nrow(train_validation)),breaks=10,labels=FALSE)
+
+accuracy_per_k_knn = c()
+
+for (n in 1:20){ # test different k value in KNN model
+  accuracy_per_k_fold = c()
+  for (i in 1:k){ # iterate through different k in f-fold
+    index = which(k_fold == i, arr.ind = TRUE) #change the index into row numbers
+    validation = train_validation[index,]
+    training = train_validation[-index,]
+    knn = kknn(formula = R1~., train = training, test = validation[,-11], k = n, scale = TRUE)
+    
+    # calculate accuracy for specific k
+    accuracy = sum(round(knn$fitted.values) == validation[,11])/nrow(validation) 
+    # store the accuracy of each k fold
+    accuracy_per_k_fold = c(accuracy_per_k_fold, accuracy)
+  }
+  # calculate the average accuracy for that specific k value in KNN model
+  ave_accuracy_per_f_fold = mean(accuracy_per_k_fold)
+  accuracy_per_k_knn = c(accuracy_per_k_knn,ave_accuracy_per_f_fold)
+}
+k_knn_accuracy = cbind('k' = 1:20, 'accuracy' = accuracy_per_k_knn)
+print (k_knn_accuracy)
+```
+Based on all the k tested and cross-validation, the best k should be either **10**,**11** or **12**, which yeild an accuracy around **```r round(k_knn_accuracy[12,'accuracy'],3)```**. Thus I decided to choose **12** to reconstruct the KNN model.
+
+```{r get final model, cache=TRUE}
+# train the model with all the train_validattion data, and then predict the test data.
+knn = kknn(formula = R1~.,train = train_validation, test = test[,-11], k = 12,scale = TRUE)
+accuracy = sum(round(knn$fitted.values) == test[,11])/nrow(test) 
+print (accuracy)
+```
+By setting the k value to **12**, i get an accuracy around**```r round(accuracy,3)```**.
+
+
+##3.1.b
+## KNN
+## I try to split the data into training, validation, and test data sets. 
+```{r cache=TRUE}
+set.seed(8)
+# randomize the order of the original data
+cc_info_random = cc_info[sample(nrow(cc_info)),]
+
+# random sample 20% from the whole data to be used as test data
+test_index = as.numeric(sample(row.names(cc_info_random), 0.2*nrow(cc_info)))
+test = cc_info_random[test_index,]  
+
+# rest 80% are assigned for training and validation
+train_validation = cc_info_random[-test_index,] 
+
+# out of the 80%, 70% go to training
+training_index = sample(row.names(train_validation), 0.7*nrow(train_validation))
+training = train_validation[training_index,]
+
+# out of the 80%, 30% go to validation
+validation = train_validation[-(match(training_index,rownames(train_validation))),]
+
+# set k value in KNN from 1 to 20
+# each model is validated, then the best model is chosen to test
+k =20
+accuracy_per_k = c()
+for (i in 1:20){
+  knn = kknn(formula = R1~.,
+             train = training,
+             test = validation,
+             k = i,
+             scale = TRUE)
+  accuracy = sum(round(knn$fitted.values) == validation[,11])/nrow(validation)
+  accuracy_per_k = c(accuracy_per_k, accuracy)
+}
+prediction_per_k_all = cbind('k' = 1:20, 'accuracy' = accuracy_per_k)
+print (prediction_per_k_all)
+```
+Based on all the k tested, the best k should be either **13** or **14**, which yeild an accuracy around **```r round(prediction_per_k_all[13,'accuracy'],3)```**. Thus I decided to choose **13** to test the KNN model.
+
+```{r test, cache=TRUE}
+knn = kknn(formula = R1~.,
+           train = training,
+           test = test,
+           k=13,
+           scale = T)
+accuracy = sum(round(knn$fitted.values) == test[,11])/nrow(test) 
+print (accuracy)
+```
+By setting the k value to **13**, i get an accuracy around**```r round(accuracy,3)```**.
+
+# 4.1
+I worked in lab that conducts research on plant pathogens. When I perform experiments, I will infect tomatoes with fungal pathogens. Most of the times, those fungal pathogens might be contaminated with other kind of pathogens. After couple of days, I will score the symptoms on the tomatoes. Based on size, color, depth and severity of the lesions on the tomatoes. Based on those predictors, I can tell which lesions are caused by specific pathogen.
+
+
+
+# 4.2
+## 4.2.1 Using **2** predictors for k-mean clustering
+```{r using 2 predictors, cache=T}
+set.seed(66)
+combination_2 = combn(c(1:4), 2) # get all combination of two predictors' column index
+k =10 # set the k to 10 in k-mean
+
+for (n in 1:ncol(combination_2)){
+  iris_predictors = iris[,combination_2[,n]] #get those two specific predictors
+  specis = iris[,5] # store the reponses
+  accuracy_per_k = c()
+  for (i in 1:k){
+    k_mean = kmeans(x = as.matrix(iris_predictors), centers = i, nstart = 25)
+    # put prediction results from k-mean clustering and actual result side by side
+    result = as.data.frame(cbind(prediction = k_mean$cluster, specis))%>%tbl_df()
+    # group the data  by both prediction and actual results, and calculate the number of specific 
+    # species-prediction combinations.
+    result_count = group_by(result, specis, prediction)%>%summarise(count = n())
+    final_count = list()
+    # get the number of correctly clustered data points in each dominate cluster
+    for (x in 1:3){
+      temp = as.data.frame(result_count[result_count$specis == x,]%>%arrange(desc(count)))
+      final_count[[x]] = temp[1,]
+     }
+    final_count = do.call(rbind, final_count)%>%arrange(desc(count))
+    # calculate the accuracy based on different k value
+    if (i == 1){
+      accuracy = sum(final_count[1, 'count'])/nrow(iris)
+      accuracy_per_k = c(accuracy_per_k,accuracy)
+    }
+   
+    if (i == 2){
+      accuracy = sum(final_count[1:2, 'count'])/nrow(iris)
+      accuracy_per_k = c(accuracy_per_k,accuracy)
+     }
+   
+    if (i >= 3){
+      accuracy = sum(final_count[1:3, 'count'])/nrow(iris)
+      accuracy_per_k = c(accuracy_per_k,accuracy)
+    }
+  } 
+  accuracy_per_k = as.data.frame(cbind(k = 1:k, accuracy = accuracy_per_k))
+  # graph accuracy vs k
+  p = ggplot(accuracy_per_k,aes(x=k,y=accuracy))+geom_point()+geom_line()+scale_x_continuous(breaks=c(1:k))+geom_text(aes(label=round(accuracy,3)),hjust=-0.1, vjust=-0.1)
+  p = p + ggtitle(paste(sep = ' + ',
+      colnames(iris_predictors)[1],colnames(iris_predictors)[2]))
+  print (p)
+}
+```
+It looks like that the combination of **Petal.Length + Petal.Width** yeilds an accuracy of as high as **0.96**.
+
+## 4.2.2 Using **3** predictors for k-mean clustering
+```{r using 3 predictors, cache=T}
+set.seed(66)
+combination_3 = combn(c(1:4), 3) # get all combination of three predictors' column index
+k =10 # set the k to 10 in k-mean
+
+for (n in 1:ncol(combination_3)){
+  iris_predictors = iris[,combination_3[,n]] #get those two specific predictors
+  specis = iris[,5] # store the reponses
+  accuracy_per_k = c()
+  for (i in 1:k){
+    k_mean = kmeans(x = as.matrix(iris_predictors), centers = i, nstart = 25)
+    # put prediction results from k-mean clustering and actual result side by side
+    result = as.data.frame(cbind(prediction = k_mean$cluster, specis))%>%tbl_df()
+    # group the data  by both prediction and actual results, and calculate the number of specific 
+    # species-prediction combinations.
+    result_count = group_by(result, specis, prediction)%>%summarise(count = n())
+    final_count = list()
+    # get the number of correctly clustered data points in each dominate cluster
+    for (x in 1:3){
+      temp = as.data.frame(result_count[result_count$specis == x,]%>%arrange(desc(count)))
+      final_count[[x]] = temp[1,]
+     }
+    final_count = do.call(rbind, final_count)%>%arrange(desc(count))
+    # calculate the accuracy based on different k value
+    if (i == 1){
+      accuracy = sum(final_count[1, 'count'])/nrow(iris)
+      accuracy_per_k = c(accuracy_per_k,accuracy)
+    }
+   
+    if (i == 2){
+      accuracy = sum(final_count[1:2, 'count'])/nrow(iris)
+      accuracy_per_k = c(accuracy_per_k,accuracy)
+     }
+   
+    if (i >= 3){
+      accuracy = sum(final_count[1:3, 'count'])/nrow(iris)
+      accuracy_per_k = c(accuracy_per_k,accuracy)
+    }
+  } 
+  accuracy_per_k = as.data.frame(cbind(k = 1:k, accuracy = accuracy_per_k))
+  # graph accuracy vs k
+  p = ggplot(accuracy_per_k,aes(x=k,y=accuracy))+geom_point()+geom_line()+scale_x_continuous(breaks=c(1:k))+geom_text(aes(label=round(accuracy,3)),hjust=-0.1, vjust=-0.1)
+  p = p + ggtitle(paste(sep = ' + ',
+      colnames(iris_predictors)[1],colnames(iris_predictors)[2],colnames(iris_predictors)[3]))
+  print (p)
+}
+```
+It looks like that the combination of **Sepal.Width + Petal.Length + Petal.Width** yeilds an accuracy of as high as **0.953**.
+
+## 4.2.3 Using all predictors for k-mean clustering
+```{r elbow method, cache=TRUE}
+set.seed(66)
+data(iris)
+iris_predictors = iris[,c(1:4)] # select all predictors
+specis = iris[,5] # store the reponses
+total_within_cluster_SS = c()
+k=10 # try K from 1 to 10
+for (i in 1:k){
+  k_mean = kmeans(x = as.matrix(iris_predictors), centers = i, nstart = 25)
+  # each time, store the total within-cluster sum of square 
+  total_within_cluster_SS = c(total_within_cluster_SS, k_mean$tot.withinss) 
+}
+total_within_cluster_SS = as.data.frame(cbind('k' = 1:k, 'SS' =total_within_cluster_SS))
+
+#elbow method to assess the quality of k-mean
+p = ggplot(data = total_within_cluster_SS, aes(x = k, y = SS))
+p = p + geom_point()+geom_line()+labs(y= 'total within-cluster sum of square')+scale_x_continuous(name = 'k value', breaks = total_within_cluster_SS[,1])
+p
+```
+
+With the help of the elbow graph, it looks like that **k=3** is a good choice.
+
+```{r using all predictors, cache=TRUE}
+set.seed(66)
+accuracy_per_k = c()
+for (i in 1:k){
+  k_mean = kmeans(x = as.matrix(iris_predictors), centers = i, nstart = 25)
+  # put prediction results from k-mean clustering and actual result side by side
+  result = as.data.frame(cbind(prediction = k_mean$cluster, specis))%>%tbl_df()
+  # group the data  by both prediction and actual results, and calculate the number of specific 
+  # species-prediction combinations.
+  result_count = group_by(result, specis, prediction)%>%summarise(count = n())
+  final_count = list()
+  # get the number of correctly clustered data points in each dominate cluster
+  for (x in 1:3){
+    temp = as.data.frame(result_count[result_count$specis == x,]%>%arrange(desc(count)))
+    final_count[[x]] = temp[1,]
+    }
+  final_count = do.call(rbind, final_count)%>%arrange(desc(count))
+  # calculate the accuracy based on different k value
+  if (i == 1){
+    accuracy = sum(final_count[1, 'count'])/nrow(iris)
+    accuracy_per_k = c(accuracy_per_k,accuracy)
+  }
+   
+  if (i == 2){
+    accuracy = sum(final_count[1:2, 'count'])/nrow(iris)
+    accuracy_per_k = c(accuracy_per_k,accuracy)
+    }
+   
+  if (i >= 3){
+    accuracy = sum(final_count[1:3, 'count'])/nrow(iris)
+    accuracy_per_k = c(accuracy_per_k,accuracy)
+  }
+} 
+accuracy_per_k = as.data.frame(cbind(k = 1:k, accuracy = accuracy_per_k))
+
+# graph accuracy vs k
+p = ggplot(accuracy_per_k,aes(x=k,y=accuracy))+geom_point()+geom_line()+scale_x_continuous(breaks=c(1:k))+geom_text(aes(label=round(accuracy,3)),hjust=-0.1, vjust=-0.1)
+p = p+ggtitle('All four predictors')
+print (p)
+```
+
+By using all four predictors, I got an prediction accuracy of **0.893**.
+
+### Thus the best prediction accuracy is from the combination of **Petal.Length + Petal.Width** when k is set to **3**.
+
+Then I try to visulize the prediction rsult vs the actual cluster by using ggplot.
+```{r graph the prediction, cache=TRUE}
+set.seed(66)
+iris_predictors = iris[,3:4]
+k_mean = kmeans(iris_predictors, centers = 3, nstart = 25)
+prediction = k_mean$cluster
+iris_with_prediction = cbind(iris, prediction)
+p = ggplot(data = iris_with_prediction,
+           aes(x = Petal.Length, y = Petal.Width, color = as.factor(prediction))
+)
+p = p + geom_point()+labs(color="predicted cluster")+ggtitle('predicted cluster')
+p = p + scale_color_manual(values=c("#999999", "#E69F00", "#56B4E9"))
+p
+
+p = ggplot(data = iris,
+           aes(x = Petal.Length, y = Petal.Width, color = as.factor(specis)))
+p = p + geom_point()+labs(color="actual species")+ggtitle('actual cluster')
+p = p + geom_point(data = iris[c(78,84,107,120,127),], aes(x = Petal.Length, y = Petal.Width), color ='red')
+p = p + scale_color_manual(values=c("#56B4E9", "#E69F00" ,"#999999"))
+p
+```
+
+As we can see in the plot, there are only five miss-clustered data points, which are labelled in <span style="color:red">red</span>.
+
+#Conslusion
+#### The best combination of predictors : **Petal.Length + Petal.Width**
+#### Suggested value of k: **3**
+#### Accuracy based on k-mean method: **0.96**
+  
